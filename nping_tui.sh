@@ -161,7 +161,7 @@ Zstatic CDN 节点 TCP 丢包探测脚本
   - 探测方式: 每节点发送 ${PACKETS} 个裸 TCP SYN 包，无内核重传
   - 并发数量: ${PARALLEL}
   - 目标端口: 80/tcp
-  - 结果展示: 统计摘要、三网概览、详细结果表
+  - 结果展示: 统计摘要、三网概览
   - CSV 输出: /tmp/zstatic_nping_YYYYmmdd_HHMMSS.csv
 
 依赖:
@@ -245,14 +245,14 @@ show_provider_summary() {
     l = loss + 0
     v = lat + 0
     if (status != "OK" || rcv + 0 == 0) {
-      return red "失败" nc
+      return red sprintf("%11s", "失败") nc
     }
 
     if      (l > 20 || v > 240) color = red
     else if (l > 0  || v > 150) color = yellow
     else                        color = green
 
-    return color sprintf("%3.0fms/%s", v, compact_loss(loss) "%") nc
+    return color sprintf("%4.0fms/%4s", v, compact_loss(loss) "%") nc
   }
   {
     status = $1
@@ -385,29 +385,6 @@ main() {
 
   show_provider_summary "$sorted_file"
 
-  echo -e "  ${BOLD}详细结果${NC}"
-
-  # 按运营商+省份排序展示
-  sort -t'|' -k3,3 -k2,2 "$sorted_file" | while IFS='|' read -r status prov isp host ip snd rcv loss lat; do
-    [ "$status" = "FAIL" ] && {
-      printf "  ${CYAN}%s${NC} %s ${RED}DNS/失败${NC}\n" "$prov" "$isp"
-      continue
-    }
-
-    local lv
-    lv=$(awk -v x="$loss" 'BEGIN { printf "%d", x }' 2>/dev/null)
-    lv=${lv:-0}
-
-    local ld
-    ld=$(loss_color "$loss")
-
-    printf "  ${CYAN}%s${NC} %s 丢包=%b 收包=%s/%s 延迟=%sms\n" \
-      "$prov" "$isp" "$ld" "$rcv" "$snd" "$lat"
-  done
-
-  echo ""
-
-  echo -e "  ${DIM}图例: ${GREEN}零丢包${NC}  ${YELLOW}≤5%${NC}  ${MAGENTA}≤20%${NC}  ${RED}>20%${NC}"
   echo -e "  ${DIM}CSV: $CSV${NC}"
   echo ""
 
