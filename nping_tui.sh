@@ -24,6 +24,8 @@ check_nping() {
   echo -e "${YELLOW}[!] nping 未安装，正在自动安装...${NC}"
   if command -v apt-get &>/dev/null; then
     apt-get update -qq && apt-get install -y -qq nmap 2>/dev/null
+  elif command -v dnf &>/dev/null; then
+    dnf install -y -q nmap 2>/dev/null
   elif command -v yum &>/dev/null; then
     yum install -y -q nmap 2>/dev/null
   elif command -v brew &>/dev/null; then
@@ -148,10 +150,10 @@ loss_color() {
   local v
   v=$(awk -v x="$1" 'BEGIN { printf "%d", x }' 2>/dev/null)
   v=${v:-0}
-  if   [ "$v" -eq 0 ];  then echo -n "${GREEN}$1%%${NC}"
-  elif [ "$v" -le 5 ];  then echo -n "${YELLOW}$1%%${NC}"
-  elif [ "$v" -le 20 ]; then echo -n "${MAGENTA}$1%%${NC}"
-  else                      echo -n "${RED}$1%%${NC}"
+  if   [ "$v" -eq 0 ];  then echo -n "${GREEN}$1%${NC}"
+  elif [ "$v" -le 5 ];  then echo -n "${YELLOW}$1%${NC}"
+  elif [ "$v" -le 20 ]; then echo -n "${MAGENTA}$1%${NC}"
+  else                      echo -n "${RED}$1%${NC}"
   fi
 }
 
@@ -185,10 +187,10 @@ test_one() {
   local raw
   raw=$(nping --tcp -p 80 --flags syn -c "$PACKETS" --delay 1s "$ip" 2>&1)
   local sent rcvd loss_pct avg_rtt
-  sent=$(echo "$raw" | grep 'Raw packets sent' | grep -oP 'sent:\s+\K\d+')
-  rcvd=$(echo "$raw" | grep 'Raw packets sent' | grep -oP 'Rcvd:\s+\K\d+')
-  loss_pct=$(echo "$raw" | grep 'Raw packets sent' | grep -oP '\(\K[\d.]+(?=%)')
-  avg_rtt=$(echo "$raw" | grep 'Avg rtt' | grep -oP 'Avg rtt:\s+\K[\d.]+')
+  sent=$(printf "%s\n" "$raw" | sed -nE 's/.*sent:[[:space:]]*([0-9]+).*/\1/p' | head -1)
+  rcvd=$(printf "%s\n" "$raw" | sed -nE 's/.*Rcvd:[[:space:]]*([0-9]+).*/\1/p' | head -1)
+  loss_pct=$(printf "%s\n" "$raw" | sed -nE 's/.*\(([0-9.]+)%\).*/\1/p' | head -1)
+  avg_rtt=$(printf "%s\n" "$raw" | sed -nE 's/.*Avg rtt:[[:space:]]*([0-9.]+).*/\1/p' | head -1)
 
   loss_pct=${loss_pct:-100.00}
   avg_rtt=${avg_rtt:-0}
