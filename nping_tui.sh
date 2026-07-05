@@ -172,6 +172,66 @@ bar() {
   printf "] %d/%d (%d%%)" "$done" "$total" "$pct"
 }
 
+count_results() {
+  find "$RESULT_DIR" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+show_progress() {
+  local done
+  done=$(count_results)
+  echo -ne "\r  ${CYAN}探测进度${NC} "
+  bar "$done" "$TOTAL"
+  echo -ne "   "
+}
+
+show_provider_summary() {
+  local file="$1"
+  awk -F'|' -v green="$GREEN" -v yellow="$YELLOW" -v red="$RED" -v cyan="$CYAN" -v dim="$DIM" -v bold="$BOLD" -v nc="$NC" '
+  function compact_loss(v) {
+    sub(/\.00$/, "", v)
+    return v
+  }
+  function cell(status, loss, lat, rcv,   l, v, block, color) {
+    l = loss + 0
+    v = lat + 0
+    if (status != "OK" || rcv + 0 == 0) {
+      return red "█" nc "  FAIL      "
+    }
+    if      (v <= 80)  block = "▁"
+    else if (v <= 160) block = "▃"
+    else if (v <= 240) block = "▆"
+    else               block = "█"
+
+    if      (l > 20 || v > 240) color = red
+    else if (l > 0  || v > 150) color = yellow
+    else                        color = green
+
+    return color block nc sprintf(" %4.0fms/%-4s", v, compact_loss(loss) "%")
+  }
+  {
+    status = $1
+    prov = $2
+    isp = $3
+    rcv = $7
+    loss = $8
+    lat = $9
+    if (!(prov in seen)) {
+      seen[prov] = 1
+      order[++n] = prov
+    }
+    data[prov SUBSEP isp] = cell(status, loss, lat, rcv)
+  }
+  END {
+    printf "  %s%s三网概览%s %s(电信 | 联通 | 移动，Step=80ms)%s\n", bold, cyan, nc, dim, nc
+    printf "  %s%-8s  %-15s %-15s %-15s%s\n", dim, "省份", "电信", "联通", "移动", nc
+    for (i = 1; i <= n; i++) {
+      prov = order[i]
+      printf "  %s%-8s%s  %s  %s  %s\n", cyan, prov, nc, data[prov SUBSEP "电信"], data[prov SUBSEP "联通"], data[prov SUBSEP "移动"]
+    }
+    printf "  %s图例: %s▁≤80ms%s  %s▃≤160ms%s  %s▆≤240ms%s  %s█>240ms/失败%s；黄色表示有丢包或延迟>150ms，红色表示严重丢包/失败。\n\n", dim, green, dim, green, dim, yellow, dim, red, dim
+  }' "$file"
+}
+
 # ===================== 单节点测试 =====================
 test_one() {
   local prov="$1" isp="$2" host="$3" idx="$4"
@@ -219,18 +279,26 @@ main() {
   echo ""
 
   # 并行测试
-  local running=0 idx=0
+  local idx=0
+  echo -e "  ${DIM}正在探测，请稍候...${NC}"
+  show_progress
   for entry in "${NODES[@]}"; do
     read -r prov isp host <<< "$entry"
     idx=$((idx + 1))
+    while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$PARALLEL" ]; do
+      show_progress
+      sleep 0.2
+    done
     test_one "$prov" "$isp" "$host" "$idx" &
-    running=$((running + 1))
-    if [ "$running" -ge "$PARALLEL" ]; then
-      wait -n 2>/dev/null || true
-      running=$((running - 1))
-    fi
+    show_progress
+  done
+  while [ "$(jobs -pr | wc -l | tr -d ' ')" -gt 0 ]; do
+    show_progress
+    sleep 0.2
   done
   wait
+  show_progress
+  echo ""
 
   # 收集结果并写入 CSV
   local CSV="/tmp/zstatic_nping_$(date +%Y%m%d_%H%M%S).csv"
@@ -275,6 +343,8 @@ main() {
     printf "  └─────────────────────────────────────────────┘\n"
     printf "\n"
   }' "$sorted_file"
+
+  show_provider_summary "$sorted_file"
 
   echo -e "  ${BOLD}详细结果${NC}"
   echo -e "  ${DIM}┌──────────────────────┬──────────┬──────────┬──────────┐${NC}"
