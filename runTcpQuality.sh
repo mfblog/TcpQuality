@@ -342,7 +342,7 @@ show_provider_summary() {
       prov_pad = (prov == "黑龙江" || prov == "内蒙古") ? "  " : "    "
       printf "  %s%s%s%s  电信 %s  联通 %s  移动 %s\n", cyan, prov, nc, prov_pad, data[prov SUBSEP "电信"], data[prov SUBSEP "联通"], data[prov SUBSEP "移动"]
     }
-    printf "  %s颜色: %s正常%s  %s有丢包或延迟>150ms%s  %s严重丢包/失败%s\n\n", dim, green, dim, yellow, dim, red, dim
+    printf "  %s颜色: %s正常%s  %s延迟151-240ms或1-20%%重传%s  %s延迟>240ms或>20%%重传，或失败%s\n\n", dim, green, dim, yellow, dim, red, dim
   }' "$file"
 }
 
@@ -370,6 +370,34 @@ print_header() {
   echo -e "${DIM}------------------------------------------------------------${NC}"
 }
 
+# 返回“出口网卡|源IPv6”，避免 nping 使用未指定源地址 ::。
+get_ipv6_route() {
+  local target="$1" route_info iface source_ip
+
+  if command -v ip &>/dev/null; then
+    route_info=$(ip -6 route get "$target" 2>/dev/null | head -1)
+    iface=$(printf "%s\n" "$route_info" | awk '{for (i=1; i<=NF; i++) if ($i=="dev") {print $(i+1); exit}}')
+    source_ip=$(printf "%s\n" "$route_info" | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}')
+    if [ -n "$iface" ] && [ -z "$source_ip" ]; then
+      source_ip=$(ip -6 addr show dev "$iface" scope global 2>/dev/null | awk '/inet6 / {sub(/\/.*/, "", $2); print $2; exit}')
+    fi
+  elif command -v route &>/dev/null && command -v ifconfig &>/dev/null; then
+    route_info=$(route -n get -inet6 "$target" 2>/dev/null)
+    iface=$(printf "%s\n" "$route_info" | awk '/interface:/ {print $2; exit}')
+    source_ip=$(printf "%s\n" "$route_info" | awk '/source:/ {print $2; exit}')
+    if [ -n "$iface" ] && [ -z "$source_ip" ]; then
+      source_ip=$(ifconfig "$iface" 2>/dev/null | awk '/inet6 / && $2 !~ /^fe80:/ && $2 != "::1" {sub(/%.*/, "", $2); print $2; exit}')
+    fi
+  fi
+
+  source_ip=${source_ip%%\%*}
+  if [ -n "$iface" ] && [[ "$source_ip" == *:* ]] && [ "$source_ip" != "::" ]; then
+    printf "%s|%s\n" "$iface" "$source_ip"
+    return 0
+  fi
+  return 1
+}
+
 # ===================== 单节点测试 =====================
 test_one() {
   local family="$1" prov="$2" isp="$3" host="$4" idx="$5"
@@ -386,10 +414,15 @@ test_one() {
     return
   fi
 
-  local raw nping_rc
+  local raw nping_rc iface source_ip route_data
   local -a nping_args=(--tcp -p 80 --flags syn -c "$PACKETS" --delay 1s "$ip")
   if [ "$family" = "6" ]; then
-    nping_args=(-6 "${nping_args[@]}")
+    if ! route_data=$(get_ipv6_route "$ip"); then
+      echo "FAIL|$prov|$isp|$host|$ip|0|0|100.00|IPV6_ROUTE_ERROR" > "$outfile"
+      return
+    fi
+    IFS='|' read -r iface source_ip <<< "$route_data"
+    nping_args=(-6 -e "$iface" -S "$source_ip" "${nping_args[@]}")
   fi
   if raw=$(nping "${nping_args[@]}" 2>&1); then
     nping_rc=0
@@ -418,6 +451,7 @@ test_one() {
 }
 
 export -f test_one
+export -f get_ipv6_route
 export RESULT_DIR PACKETS
 
 # ===================== 主流程 =====================
