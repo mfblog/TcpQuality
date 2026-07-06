@@ -293,14 +293,14 @@ show_provider_summary() {
     l = loss + 0
     v = lat + 0
     if (status != "OK" || rcv + 0 == 0) {
-      return red sprintf("%11s", "失败") nc
+      return red "          失败" nc
     }
 
     if      (l > 20 || v > 240) color = red
     else if (l > 0  || v > 150) color = yellow
     else                        color = green
 
-    return color sprintf("%4.0fms/%4s", v, compact_loss(loss) "%") nc
+    return color sprintf("%4.0fms/%7s", v, compact_loss(loss) "%") nc
   }
   {
     status = $1
@@ -319,7 +319,8 @@ show_provider_summary() {
     printf "  %s%s三网概览%s %s(电信 | 联通 | 移动)%s\n", bold, cyan, nc, dim, nc
     for (i = 1; i <= n; i++) {
       prov = order[i]
-      printf "  %s%-8s%s  电信 %s  联通 %s  移动 %s\n", cyan, prov, nc, data[prov SUBSEP "电信"], data[prov SUBSEP "联通"], data[prov SUBSEP "移动"]
+      prov_pad = (prov == "黑龙江" || prov == "内蒙古") ? "  " : "    "
+      printf "  %s%s%s%s  电信 %s  联通 %s  移动 %s\n", cyan, prov, nc, prov_pad, data[prov SUBSEP "电信"], data[prov SUBSEP "联通"], data[prov SUBSEP "移动"]
     }
     printf "  %s颜色: %s正常%s  %s有丢包或延迟>150ms%s  %s严重丢包/失败%s\n\n", dim, green, dim, yellow, dim, red, dim
   }' "$file"
