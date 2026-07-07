@@ -79,5 +79,3 @@ bash <(curl -fsSL https://tcpquality.ibsgss.uk/run) -p 16
 - `--all`：检测三网、CERNET 和 CERNET2；出现 `--all` 时会探测全部可用 IP 协议。
 
 脚本仅检测本机可用的 IP 协议；缺少 IPv4 或 IPv6 时会自动跳过对应节点。发送 TCP SYN 探测包通常需要使用 `root` 用户运行。IPv4 会跳过私网、保留地址和 `198.18.0.0/15` 测试网段。
-
-SVG 报告默认提交到 `https://tcpquality.ibsgss.uk/generate`，由报告服务生成并保存。
