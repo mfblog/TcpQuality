@@ -431,7 +431,7 @@ show_provider_summary() {
     l = loss + 0
     v = lat + 0
     if (status != "OK") {
-      return red "            失败" nc
+      return red sprintf("%12s", "失败") nc
     }
 
     if      (l > 20 || v > 240) color = red
@@ -489,7 +489,7 @@ show_education_results() {
     return int(v + 0.5)
   }
   function cell(status, loss, lat,   l, v, color) {
-    if (status != "OK") return red "            失败" nc
+    if (status != "OK") return red sprintf("%12s", "失败") nc
     l = loss + 0
     v = lat + 0
     if      (l > 20 || v > 240) color = red
@@ -529,7 +529,7 @@ show_education_combined() {
     return int(v + 0.5)
   }
   function cell(status, loss, lat,   l, v, color) {
-    if (status != "OK") return red "            失败" nc
+    if (status != "OK") return red sprintf("%12s", "失败") nc
     l = loss + 0
     v = lat + 0
     if      (l > 20 || v > 240) color = red
