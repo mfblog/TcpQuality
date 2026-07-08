@@ -427,18 +427,27 @@ show_provider_summary() {
   function compact_loss(v) {
     return int(v + 0.5)
   }
+  function fail_cell() {
+    return red "失败         " nc
+  }
+  function latency_color(v) {
+    if (v > 240) return red
+    if (v > 150) return yellow
+    return green
+  }
+  function loss_color(l) {
+    if (l > 20) return red
+    if (l > 0) return yellow
+    return green
+  }
   function cell(status, loss, lat, rcv,   l, v, color) {
     l = loss + 0
     v = lat + 0
     if (status != "OK") {
-      return red sprintf("%12s", "失败") nc
+      return fail_cell()
     }
 
-    if      (l > 20 || v > 240) color = red
-    else if (l > 0  || v > 150) color = yellow
-    else                        color = green
-
-    return color sprintf("%4.0fms / %4s", v, compact_loss(loss) "%") nc
+    return latency_color(v) sprintf("%4.0fms", v) nc " / " loss_color(l) sprintf("%4s", compact_loss(loss) "%") nc
   }
   {
     status = $1
@@ -488,14 +497,21 @@ show_education_results() {
   function compact_loss(v) {
     return int(v + 0.5)
   }
+  function latency_color(v) {
+    if (v > 240) return red
+    if (v > 150) return yellow
+    return green
+  }
+  function loss_color(l) {
+    if (l > 20) return red
+    if (l > 0) return yellow
+    return green
+  }
   function cell(status, loss, lat,   l, v, color) {
-    if (status != "OK") return red sprintf("%12s", "失败") nc
+    if (status != "OK") return red "失败         " nc
     l = loss + 0
     v = lat + 0
-    if      (l > 20 || v > 240) color = red
-    else if (l > 0  || v > 150) color = yellow
-    else                        color = green
-    return color sprintf("%4.0fms / %4s", v, compact_loss(loss) "%") nc
+    return latency_color(v) sprintf("%4.0fms", v) nc " / " loss_color(l) sprintf("%4s", compact_loss(loss) "%") nc
   }
   {
     status = $1
@@ -528,14 +544,21 @@ show_education_combined() {
   function compact_loss(v) {
     return int(v + 0.5)
   }
+  function latency_color(v) {
+    if (v > 240) return red
+    if (v > 150) return yellow
+    return green
+  }
+  function loss_color(l) {
+    if (l > 20) return red
+    if (l > 0) return yellow
+    return green
+  }
   function cell(status, loss, lat,   l, v, color) {
-    if (status != "OK") return red sprintf("%12s", "失败") nc
+    if (status != "OK") return red "失败         " nc
     l = loss + 0
     v = lat + 0
-    if      (l > 20 || v > 240) color = red
-    else if (l > 0  || v > 150) color = yellow
-    else                        color = green
-    return color sprintf("%4.0fms / %4s", v, compact_loss(loss) "%") nc
+    return latency_color(v) sprintf("%4.0fms", v) nc " / " loss_color(l) sprintf("%4s", compact_loss(loss) "%") nc
   }
   {
     generation = (FILENAME == ARGV[1]) ? 1 : 2
