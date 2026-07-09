@@ -1,6 +1,6 @@
 # TcpQuality
 
-TCP 重传检测脚本，默认检测三网节点。每节点单发 30 次裸 TCP SYN，默认并行 16，检测完成后自动上传报告并返回公开链接。
+TCP 质量检测脚本，默认检测全国三网运营商节点。
 
 ## 快速运行
 
@@ -18,9 +18,9 @@ bash <(curl -fsSL https://tcpquality.ibsgss.uk/run)
 
 示例报告：
 
-https://tcpquality.ibsgss.uk/r/H7Wt_AncYw
+https://tcpquality.ibsgss.uk/r/3-xsaeoJDH
 
-![TcpQuality 示例报告](https://tcpquality.ibsgss.uk/r/H7Wt_AncYw.svg)
+![TcpQuality 示例报告](https://tcpquality.ibsgss.uk/r/3-xsaeoJDH.svg)
 
 ---
 
