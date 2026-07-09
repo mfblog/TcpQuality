@@ -405,14 +405,11 @@ TcpQuality 节点 TCP 丢包探测脚本
 选项:
   -h, --help        显示帮助信息并退出
   -c, --count NUM   设置每节点发包数，默认 ${PACKETS}
-  -cNUM             同上，例如 -c10 表示每节点发送 10 个包
-  --count=NUM       同上，设置每节点发包数
   -p, --parallel NUM
                      设置并行节点数，范围 1-31，默认 ${PARALLEL}
-  --parallel=NUM    同上，设置并行节点数
   -v4, --v4         仅探测 IPv4
   -v6, --v6         仅探测 IPv6
-  --cernet          在三网基础上增加 CERNET IPv4 和 CERNET2 IPv6
+  --cernet          仅探测 CERNET IPv4 和 CERNET2 IPv6
   --all             探测三网、CERNET 和 CERNET2
   --province CODE   仅检测指定省份，可重复；也支持简写参数如 -bj、-sh、-gd
                      注意: 山西使用 -sx，陕西使用 -sn
@@ -455,22 +452,6 @@ parse_args() {
         PACKETS="$2"
         shift 2
         ;;
-      -c[0-9]*)
-        PACKETS="${1#-c}"
-        if ! [[ "$PACKETS" =~ ^[0-9]+$ ]] || [ "$PACKETS" -lt 1 ]; then
-          echo -e "${RED}[X] 发包数必须是大于 0 的整数${NC}" >&2
-          exit 1
-        fi
-        shift
-        ;;
-      --count=*)
-        PACKETS="${1#*=}"
-        if ! [[ "$PACKETS" =~ ^[0-9]+$ ]] || [ "$PACKETS" -lt 1 ]; then
-          echo -e "${RED}[X] 发包数必须是大于 0 的整数${NC}" >&2
-          exit 1
-        fi
-        shift
-        ;;
       -p|--parallel)
         if [ -z "${2:-}" ] || ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -lt 1 ] || [ "$2" -gt 31 ]; then
           echo -e "${RED}[X] 并行节点数必须是 1-31 之间的整数${NC}" >&2
@@ -478,14 +459,6 @@ parse_args() {
         fi
         PARALLEL="$2"
         shift 2
-        ;;
-      --parallel=*)
-        PARALLEL="${1#*=}"
-        if ! [[ "$PARALLEL" =~ ^[0-9]+$ ]] || [ "$PARALLEL" -lt 1 ] || [ "$PARALLEL" -gt 31 ]; then
-          echo -e "${RED}[X] 并行节点数必须是 1-31 之间的整数${NC}" >&2
-          exit 1
-        fi
-        shift
         ;;
       -v4|--v4)
         ONLY_IPV4=1
@@ -513,13 +486,6 @@ parse_args() {
           exit 1
         fi
         shift 2
-        ;;
-      --province=*)
-        if ! add_province_filter "${1#*=}"; then
-          echo -e "${RED}[X] 不支持的省份代码: ${1#*=}${NC}" >&2
-          exit 1
-        fi
-        shift
         ;;
       -??|-???)
         if add_province_filter "$1"; then
@@ -1438,7 +1404,12 @@ main() {
     echo -e "${DIM}[i] 已按参数跳过 IPv4${NC}"
   fi
 
-  if [ "$TEST_CERNET" -eq 1 ] || [ "$TEST_ALL" -eq 1 ]; then test_edu=1; fi
+  if [ "$TEST_CERNET" -eq 1 ] && [ "$TEST_ALL" -eq 0 ]; then
+    test_cdn=0
+    test_edu=1
+  elif [ "$TEST_CERNET" -eq 1 ] || [ "$TEST_ALL" -eq 1 ]; then
+    test_edu=1
+  fi
 
   local cdn_node_count cernet_node_count cernet2_node_count
   cdn_node_count=$(count_cdn_nodes)

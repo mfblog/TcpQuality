@@ -25,11 +25,11 @@ https://tcpquality.ibsgss.uk/r/3-xsaeoJDH
 ## 支持参数
 
 - `-h`、`--help`：显示帮助信息并退出。
-- `-c NUM`、`-cNUM`、`--count NUM`、`--count=NUM`：设置每个节点的发包数量，默认 30。
-- `-p NUM`、`--parallel NUM`、`--parallel=NUM`：设置并行节点数，范围 1-31，默认 16。
+- `-c NUM`、`--count NUM`：设置每个节点的发包数量，默认 30。
+- `-p NUM`、`--parallel NUM`：设置并行节点数，范围 1-31，默认 16。
 - `-v4`、`--v4`：仅探测 IPv4。
 - `-v6`、`--v6`：仅探测 IPv6。
-- `--cernet`：在三网基础上增加 CERNET IPv4 和 CERNET2 IPv6。
+- `--cernet`：仅探测 CERNET IPv4 和 CERNET2 IPv6。
 - `--all`：检测三网、CERNET 和 CERNET2；出现 `--all` 时会探测全部可用 IP 协议。
 - `--province CODE`：仅检测指定省份，可重复；也支持 `-bj`、`-sh`、`-gd` 等省份简写。
 - `--debug`：保留临时文件并输出调试信息。
