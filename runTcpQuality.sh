@@ -995,7 +995,7 @@ route_label_from_ip_trace() {
     function is_163_ip(ip) {
       return ip ~ /^202\.97\./ || ip ~ /^202\.96\./ || ip ~ /^219\.141\./ || ip ~ /^219\.142\./ || ip ~ /^106\.37\./
     }
-    function classify(   hop, first_cn2, has_ctgnet, has_cn2, has_163_after_cn2) {
+    function classify(   hop, first_cn2, has_ctgnet, has_cn2) {
       for (hop = 1; hop <= max_hop; hop++) {
         if (asns[hop] == "23764" || is_ctgnet_ip(ips[hop])) has_ctgnet = 1
         if (asns[hop] == "4809" || ips[hop] ~ /^59\.43\./) {
@@ -1003,20 +1003,11 @@ route_label_from_ip_trace() {
           if (first_cn2 == 0) first_cn2 = hop
         }
       }
-      if (first_cn2 > 0) {
-        for (hop = first_cn2 + 1; hop <= max_hop; hop++) {
-          if (asns[hop] == "4134" || is_163_ip(ips[hop])) {
-            has_163_after_cn2 = 1
-            break
-          }
-        }
-      }
       if (has_asn("58807")) return "CMIN2"
       if (has_asn("10099")) return "10099"
       if (has_asn("9929")) return "9929"
       if (has_cn2) {
         if (has_ctgnet) return "CTGGIA"
-        if (has_163_after_cn2) return "CN2GT"
         return "CN2GIA"
       }
       if (has_asn("4837") || has_asn("4808")) return "4837"
