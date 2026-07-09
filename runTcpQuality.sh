@@ -971,6 +971,7 @@ route_label_from_ip_trace() {
   awk -F'|' '
     function infer_asn_from_ip(ip) {
       if (ip ~ /^59\.43\./) return "4809"
+      if (ip ~ /^203\.22\.182\./ || ip ~ /^203\.22\.178\./ || ip ~ /^203\.22\.179\./ || ip ~ /^203\.128\.224\./ || ip ~ /^69\.194\./) return "23764"
       if (ip ~ /^202\.97\./ || ip ~ /^202\.96\./ || ip ~ /^219\.141\./ || ip ~ /^219\.142\./ || ip ~ /^106\.37\./) return "4134"
       if (ip ~ /^219\.158\./) return "4837"
       if (ip ~ /^223\.120\./ || ip ~ /^223\.119\./) return "58453"
@@ -985,22 +986,39 @@ route_label_from_ip_trace() {
     function add_asn(asn) {
       if (asn != "" && index(all_asn, "AS" asn " ") == 0) all_asn = all_asn "AS" asn " "
     }
-    function classify(   hop, label) {
+    function is_ctgnet_ip(ip) {
+      return ip ~ /^203\.22\.182\./ || ip ~ /^203\.22\.178\./ || ip ~ /^203\.22\.179\./ || ip ~ /^203\.128\.224\./ || ip ~ /^69\.194\./
+    }
+    function is_163_ip(ip) {
+      return ip ~ /^202\.97\./ || ip ~ /^202\.96\./ || ip ~ /^219\.141\./ || ip ~ /^219\.142\./ || ip ~ /^106\.37\./
+    }
+    function classify(   hop, first_cn2, has_ctgnet, has_cn2, has_163_after_cn2) {
+      for (hop = 1; hop <= max_hop; hop++) {
+        if (asns[hop] == "23764" || is_ctgnet_ip(ips[hop])) has_ctgnet = 1
+        if (asns[hop] == "4809" || ips[hop] ~ /^59\.43\./) {
+          has_cn2 = 1
+          if (first_cn2 == 0) first_cn2 = hop
+        }
+      }
+      if (first_cn2 > 0) {
+        for (hop = first_cn2 + 1; hop <= max_hop; hop++) {
+          if (asns[hop] == "4134" || is_163_ip(ips[hop])) {
+            has_163_after_cn2 = 1
+            break
+          }
+        }
+      }
       if (has_asn("58807")) return "CMIN2"
       if (has_asn("10099")) return "10099"
       if (has_asn("9929")) return "9929"
-      if (has_asn("4809")) {
-        label = has_asn("23764") ? "CTGGIA" : "CN2GIA"
-        for (hop = 1; hop <= max_hop; hop++) {
-          if (asns[hop] == "4809" || asns[hop] == "23764" || asns[hop] == "") continue
-          if (ips[hop] ~ /^202\.97\./) label = "CN2GT"
-          break
-        }
-        return label
+      if (has_cn2) {
+        if (has_ctgnet) return "CTGGIA"
+        if (has_163_after_cn2) return "CN2GT"
+        return "CN2GIA"
       }
-      if (has_asn("23764")) return "CTGGIA"
-      if (has_asn("4134") || has_asn("4847")) return "163"
+      if (has_ctgnet || has_asn("23764")) return "CTGGIA"
       if (has_asn("4837") || has_asn("4808")) return "4837"
+      if (has_asn("4134") || has_asn("4847")) return "163"
       if (has_asn("58453") || has_asn("9808") || has_asn("56040") || has_asn("56041") || has_asn("56042") || has_asn("56044") || has_asn("56045") || has_asn("56046") || has_asn("56047") || has_asn("56048")) return "CMI"
       if (has_asn("4538")) return "CERNET"
       if (has_asn("7497")) return "CSTNET"
