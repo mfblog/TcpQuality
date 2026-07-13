@@ -22,6 +22,12 @@ IPV4_PUBLIC=""
 IPV6_PUBLIC=""
 IPV4_WORK=0
 IPV6_WORK=0
+GET_NODES_URL="${GET_NODES_URL:-https://tcpquality.ibsgss.uk/getNodes}"
+REMOTE_NODES_LOADED=0
+REMOTE_CDN4_NODES=()
+REMOTE_CDN6_NODES=()
+REMOTE_CERNET_NODES=()
+REMOTE_CERNET2_NODES=()
 
 # ===================== 依赖与权限检查 =====================
 init_privilege() {
@@ -110,263 +116,23 @@ check_nping() {
   fi
 }
 
-check_dig() {
-  if command -v dig &>/dev/null; then
-    return 0
-  fi
-  echo -e "${YELLOW}[!] dig 未安装，正在自动安装...${NC}"
-  if install_with_package_manager dig dnsutils bind-utils bind-utils bind-tools bind bind; then
-    if ! command -v dig &>/dev/null && command -v brew &>/dev/null; then
-      export PATH="$(brew --prefix bind)/bin:$PATH"
-    fi
-  fi
-  if ! command -v dig &>/dev/null && command -v brew &>/dev/null; then
-    export PATH="$(brew --prefix bind)/bin:$PATH"
-  fi
-  if command -v dig &>/dev/null; then
-    echo -e "${GREEN}[√] dig 安装成功${NC}"
-  else
-    echo -e "${RED}[X] dig 安装失败${NC}"
-    exit 1
-  fi
-}
-
 check_traceroute() {
   check_command traceroute traceroute traceroute traceroute traceroute traceroute traceroute traceroute
 }
 
 require_raw_socket_privilege() {
-  if [ "$(uname)" != "Darwin" ] && [ "$(id -u)" -ne 0 ]; then
+  if [ "$(id -u)" -ne 0 ]; then
     echo -e "${RED}[X] 运行权限不足，请切换到 root 用户后运行${NC}"
     exit 1
   fi
 }
 
-# ===================== 节点数据 =====================
-NODES=(
-  "河北 联通 he-cu-v4.ip.zstaticcdn.com"
-  "河北 移动 he-cm-v4.ip.zstaticcdn.com"
-  "河北 电信 he-ct-v4.ip.zstaticcdn.com"
-  "山西 联通 sx-cu-v4.ip.zstaticcdn.com"
-  "山西 移动 sx-cm-v4.ip.zstaticcdn.com"
-  "山西 电信 sx-ct-v4.ip.zstaticcdn.com"
-  "辽宁 联通 ln-cu-v4.ip.zstaticcdn.com"
-  "辽宁 移动 ln-cm-v4.ip.zstaticcdn.com"
-  "辽宁 电信 ln-ct-v4.ip.zstaticcdn.com"
-  "吉林 联通 jl-cu-v4.ip.zstaticcdn.com"
-  "吉林 移动 jl-cm-v4.ip.zstaticcdn.com"
-  "吉林 电信 jl-ct-v4.ip.zstaticcdn.com"
-  "黑龙江 联通 hl-cu-v4.ip.zstaticcdn.com"
-  "黑龙江 移动 hl-cm-v4.ip.zstaticcdn.com"
-  "黑龙江 电信 hl-ct-v4.ip.zstaticcdn.com"
-  "江苏 联通 js-cu-v4.ip.zstaticcdn.com"
-  "江苏 移动 js-cm-v4.ip.zstaticcdn.com"
-  "江苏 电信 js-ct-v4.ip.zstaticcdn.com"
-  "浙江 联通 zj-cu-v4.ip.zstaticcdn.com"
-  "浙江 移动 zj-cm-v4.ip.zstaticcdn.com"
-  "浙江 电信 zj-ct-v4.ip.zstaticcdn.com"
-  "安徽 联通 ah-cu-v4.ip.zstaticcdn.com"
-  "安徽 移动 ah-cm-v4.ip.zstaticcdn.com"
-  "安徽 电信 ah-ct-v4.ip.zstaticcdn.com"
-  "福建 联通 fj-cu-v4.ip.zstaticcdn.com"
-  "福建 移动 fj-cm-v4.ip.zstaticcdn.com"
-  "福建 电信 fj-ct-v4.ip.zstaticcdn.com"
-  "江西 联通 jx-cu-v4.ip.zstaticcdn.com"
-  "江西 移动 jx-cm-v4.ip.zstaticcdn.com"
-  "江西 电信 jx-ct-v4.ip.zstaticcdn.com"
-  "山东 联通 sd-cu-v4.ip.zstaticcdn.com"
-  "山东 移动 sd-cm-v4.ip.zstaticcdn.com"
-  "山东 电信 sd-ct-v4.ip.zstaticcdn.com"
-  "河南 联通 ha-cu-v4.ip.zstaticcdn.com"
-  "河南 移动 ha-cm-v4.ip.zstaticcdn.com"
-  "河南 电信 ha-ct-v4.ip.zstaticcdn.com"
-  "湖北 联通 hb-cu-v4.ip.zstaticcdn.com"
-  "湖北 移动 hb-cm-v4.ip.zstaticcdn.com"
-  "湖北 电信 hb-ct-v4.ip.zstaticcdn.com"
-  "湖南 联通 hn-cu-v4.ip.zstaticcdn.com"
-  "湖南 移动 hn-cm-v4.ip.zstaticcdn.com"
-  "湖南 电信 hn-ct-v4.ip.zstaticcdn.com"
-  "广东 联通 gd-cu-v4.ip.zstaticcdn.com"
-  "广东 移动 gd-cm-v4.ip.zstaticcdn.com"
-  "广东 电信 gd-ct-v4.ip.zstaticcdn.com"
-  "海南 联通 hi-cu-v4.ip.zstaticcdn.com"
-  "海南 移动 hi-cm-v4.ip.zstaticcdn.com"
-  "海南 电信 hi-ct-v4.ip.zstaticcdn.com"
-  "四川 联通 sc-cu-v4.ip.zstaticcdn.com"
-  "四川 移动 sc-cm-v4.ip.zstaticcdn.com"
-  "四川 电信 sc-ct-v4.ip.zstaticcdn.com"
-  "贵州 联通 gz-cu-v4.ip.zstaticcdn.com"
-  "贵州 移动 gz-cm-v4.ip.zstaticcdn.com"
-  "贵州 电信 gz-ct-v4.ip.zstaticcdn.com"
-  "云南 联通 yn-cu-v4.ip.zstaticcdn.com"
-  "云南 移动 yn-cm-v4.ip.zstaticcdn.com"
-  "云南 电信 yn-ct-v4.ip.zstaticcdn.com"
-  "陕西 联通 sn-cu-v4.ip.zstaticcdn.com"
-  "陕西 移动 sn-cm-v4.ip.zstaticcdn.com"
-  "陕西 电信 sn-ct-v4.ip.zstaticcdn.com"
-  "甘肃 联通 gs-cu-v4.ip.zstaticcdn.com"
-  "甘肃 移动 gs-cm-v4.ip.zstaticcdn.com"
-  "甘肃 电信 gs-ct-v4.ip.zstaticcdn.com"
-  "青海 联通 qh-cu-v4.ip.zstaticcdn.com"
-  "青海 移动 qh-cm-v4.ip.zstaticcdn.com"
-  "青海 电信 qh-ct-v4.ip.zstaticcdn.com"
-  "内蒙古 联通 nm-cu-v4.ip.zstaticcdn.com"
-  "内蒙古 移动 nm-cm-v4.ip.zstaticcdn.com"
-  "内蒙古 电信 nm-ct-v4.ip.zstaticcdn.com"
-  "广西 联通 gx-cu-v4.ip.zstaticcdn.com"
-  "广西 移动 gx-cm-v4.ip.zstaticcdn.com"
-  "广西 电信 gx-ct-v4.ip.zstaticcdn.com"
-  "西藏 联通 xz-cu-v4.ip.zstaticcdn.com"
-  "西藏 移动 xz-cm-v4.ip.zstaticcdn.com"
-  "西藏 电信 xz-ct-v4.ip.zstaticcdn.com"
-  "宁夏 联通 nx-cu-v4.ip.zstaticcdn.com"
-  "宁夏 移动 nx-cm-v4.ip.zstaticcdn.com"
-  "宁夏 电信 nx-ct-v4.ip.zstaticcdn.com"
-  "新疆 联通 xj-cu-v4.ip.zstaticcdn.com"
-  "新疆 移动 xj-cm-v4.ip.zstaticcdn.com"
-  "新疆 电信 xj-ct-v4.ip.zstaticcdn.com"
-  "北京 联通 bj-cu-v4.ip.zstaticcdn.com"
-  "北京 移动 bj-cm-v4.ip.zstaticcdn.com"
-  "北京 电信 bj-ct-v4.ip.zstaticcdn.com"
-  "天津 联通 tj-cu-v4.ip.zstaticcdn.com"
-  "天津 移动 cn-tj-mobile-tcp.istat.online 443"
-  "天津 电信 tj-ct-v4.ip.zstaticcdn.com"
-  "上海 联通 sh-cu-v4.ip.zstaticcdn.com"
-  "上海 移动 sh-cm-v4.ip.zstaticcdn.com"
-  "上海 电信 sh-ct-v4.ip.zstaticcdn.com"
-  "重庆 联通 cq-cu-v4.ip.zstaticcdn.com"
-  "重庆 移动 cq-cm-v4.ip.zstaticcdn.com"
-  "重庆 电信 cq-ct-v4.ip.zstaticcdn.com"
-)
-
-fallback_city_codes() {
-  case "$1" in
-    河北) echo "sjz ts qhd hd xt bd zjk cd cz lf hs" ;;
-    山西) echo "ty dt yq cz jc sz jz yc xz lf ll" ;;
-    辽宁) echo "sy dl as fs bx dd jz yk fx ly pj tl cy hl" ;;
-    吉林) echo "cc jl sp ly th bs ss bc yb" ;;
-    黑龙江) echo "hrb qqhr jx hegang sys dq yc jms qth mdj hh suihua dxal" ;;
-    江苏) echo "nj wx xz cz sz nt lyg ha yc yz zj tz sq" ;;
-    浙江) echo "hz nb wz jx huz sx jh qz zs tz ls" ;;
-    安徽) echo "hf wh bb hn mas hb tl aq hs cz fy sz la ha cz2 xc" ;;
-    福建) echo "fz xm pt sm qz zz np ly nd" ;;
-    江西) echo "nc jdz px jj xy yt gz ja yc fz sr" ;;
-    山东) echo "jn qd zb zz dy yt wf jn2 ta wh rz lw ly dz lc bz hz" ;;
-    河南) echo "zz kf ly pds ay hb xx jz py xc lh smx ny sq xy zk zmd" ;;
-    湖北) echo "wh hs sy yc xf ez jm xg hg xn sz es" ;;
-    湖南) echo "cs zz xt hy sy yy cd zjj yyi cz yz hh ld xx" ;;
-    广东) echo "gz sz zh st fs sg zj mm hz mz sw hy yj qy dg zs cz jy yf" ;;
-    海南) echo "hk sy dz qh wzs" ;;
-    四川) echo "cd zg pzh lz dy my gy sn nj ls nc yb ga dz bz ya ms zy ab gz lsz" ;;
-    贵州) echo "gy lps zy as tr qxn bj qdn qn" ;;
-    云南) echo "km qj yx bs zt lj pe lc cx hh ws xsbn dl dh nj dq" ;;
-    陕西) echo "xa xian xy wn yl ak hz bj tc sl" ;;
-    甘肃) echo "lz jy jc by ts ww zy pl jq qx dx ln gn" ;;
-    青海) echo "xn hd hb hn hainan gl ys hx" ;;
-    内蒙古) echo "hhht bt wh cf tl eeds hlbe byne wlcb xlgl als" ;;
-    广西) echo "nn lz gl wz bh fcg qz gg yl bs hz hc lb cz" ;;
-    西藏) echo "ls rkz cd lz sn nq al" ;;
-    宁夏) echo "yc szs wz gy zw" ;;
-    新疆) echo "wlmq klmy tlf hami changji bozhou bygl aks kzls ks ht yl tc altay" ;;
-    北京) echo "bj" ;;
-    天津) echo "tj" ;;
-    上海) echo "sh" ;;
-    重庆) echo "cq" ;;
-  esac
-}
-
-isp_code() {
-  case "$1" in
-    电信) echo "ct" ;;
-    联通) echo "cu" ;;
-    移动) echo "cm" ;;
-    *) return 1 ;;
-  esac
-}
-
-fallback_hosts() {
-  local prov="$1" isp="$2" family="$3" primary_host="$4" code isp_suffix host
-  isp_suffix=$(isp_code "$isp") || return 0
-  for code in $(fallback_city_codes "$prov"); do
-    host="${code}-${isp_suffix}-v${family}.ip.zstaticcdn.com"
-    [ "$host" = "$primary_host" ] && continue
-    printf "%s\n" "$host"
-  done
-}
-
-# CERNET（AS4538，仅 IPv4）与 CERNET2（AS23910，仅 IPv6）。
-CERNET_NODES=(
-  "河北 www.hebtu.edu.cn 202.206.100.34"
-  "山西 www.tyut.edu.cn 202.207.240.104"
-  "辽宁 www.dlut.edu.cn 202.118.66.66"
-  "吉林 www.jlu.edu.cn 202.198.16.83"
-  "黑龙江 www.hit.edu.cn 202.118.254.135"
-  "江苏 www.nju.edu.cn 202.119.32.7"
-  "浙江 www.hdu.edu.cn 210.32.32.181"
-  "安徽 ustc.edu.cn 202.38.64.246"
-  "福建 www.xmu.edu.cn 219.229.81.211"
-  "江西 www.ncu.edu.cn 222.204.6.206"
-  "山东 www.sdu.edu.cn 202.194.7.118"
-  "河南 www.zzu.edu.cn 202.196.64.48"
-  "湖北 www.whu.edu.cn 115.156.123.20"
-  "湖南 www.hnu.edu.cn 202.197.98.24"
-  "广东 www.sysu.edu.cn 202.116.64.8"
-  "海南 www.hainnu.edu.cn 210.37.8.40"
-  "四川 www.scu.edu.cn 202.115.32.43"
-  "贵州 www.gzu.edu.cn 210.40.12.58"
-  "云南 www.ynu.edu.cn 113.55.13.95"
-  "陕西 www.xjtu.edu.cn 202.117.1.13"
-  "甘肃 www.lzu.edu.cn 202.201.0.81"
-  "青海 www.qhu.edu.cn 210.27.177.240"
-  "内蒙古 www.imu.edu.cn 183.175.40.132"
-  "广西 www.gxu.edu.cn 210.36.16.35"
-  "西藏 www.xzmu.edu.cn 202.200.16.13"
-  "宁夏 www.nxu.edu.cn 222.23.220.245"
-  "新疆 www.xju.edu.cn 111.115.76.75"
-  "北京 pku.edu.cn 162.105.131.160"
-  "天津 www.tju.edu.cn 202.113.2.198"
-  "上海 www.sjtu.edu.cn 202.120.2.114"
-  "重庆 www.cqu.edu.cn 202.202.2.6"
-)
-
-CERNET2_NODES=(
-  "河北 www.hebtu.edu.cn 2001:250:800:1::34"
-  "山西 www.tyut.edu.cn 2001:250:c01:5000:cacf:f068::"
-  "辽宁 www.dlut.edu.cn 2001:da8:a800:3::66"
-  "吉林 www.jlu.edu.cn 2001:da8:b000::80"
-  "黑龙江 www.hit.edu.cn 2001:da8:b800:253::c0a8:3208"
-  "江苏 www.nju.edu.cn 2001:da8:1007::9999"
-  "浙江 www.hdu.edu.cn 2001:250:6402:106::102:36"
-  "安徽 ustc.edu.cn 2001:da8:d800:642::248"
-  "福建 www.xmu.edu.cn 2001:da8:e800:251c::211"
-  "江西 www.ncu.edu.cn 2001:250:6c00:60::4"
-  "山东 www.sdu.edu.cn 2001:da8:7000:7:202:194:7:118"
-  "河南 www.zzu.edu.cn 2001:da8:5000:6c00::47"
-  "湖北 www.whu.edu.cn 2001:250:4001:4::9"
-  "湖南 www.hnu.edu.cn 2001:250:4402:51::9"
-  "广东 www.sysu.edu.cn 2001:250:3002:10::8"
-  "海南 www.hainnu.edu.cn 2001:250:3800:18::40"
-  "四川 www.scu.edu.cn 2001:250:2003::43"
-  "贵州 www.gzu.edu.cn 2001:250:2c00::60"
-  "云南 www.ynu.edu.cn 2001:250:2800:0:28:0:13:95"
-  "陕西 www.xjtu.edu.cn 2001:250:1001:1::ca75:10d"
-  "甘肃 www.lzu.edu.cn 2001:da8:c000:2::2026"
-  "青海 www.qhu.edu.cn 2001:250:1e01:1::240"
-  "内蒙古 www.imu.edu.cn 2001:da8:21d:c101::2"
-  "广西 www.gxu.edu.cn 2001:250:3401:1::35"
-  "西藏 www.xzmu.edu.cn 2001:da8:4023:16::13"
-  "宁夏 www.nxu.edu.cn 2001:250:1c00:1::245"
-  "新疆 www.xju.edu.cn 2001:250:1800:1997::4"
-  "北京 lib.pku.edu.cn 2001:da8:201:1138::a269:8a9e"
-  "天津 www.tju.edu.cn 2001:da8:a000:ab23::10"
-  "上海 www.sjtu.edu.cn 2001:da8:8000:6181:202:120:2:114"
-  "重庆 www.cqu.edu.cn 2001:da8:c800:100:caca:206::"
-)
+# ===================== 远端节点 =====================
+# 节点域名、真实 IP 与端口统一由 GET_NODES_URL 提供，脚本不再内置探测节点或备用节点。
 
 PACKETS=30
 PACKET_SIZES=(40 80 160 320 640 1200)
-NODE_TOTAL=${#NODES[@]}
-TOTAL=$NODE_TOTAL
+TOTAL=0
 PARALLEL=16
 TEST_CERNET=0
 TEST_ALL=0
@@ -452,30 +218,121 @@ province_filter_text() {
 }
 
 count_cdn_nodes() {
-  local entry prov isp host port count=0
-  for entry in "${NODES[@]}"; do
-    read -r prov isp host port <<< "$entry"
+  local family="${1:-4}" entry prov isp host fixed_ip port count=0
+  local -a remote_nodes=()
+  if [ "$family" = "6" ]; then
+    remote_nodes=("${REMOTE_CDN6_NODES[@]}")
+  else
+    remote_nodes=("${REMOTE_CDN4_NODES[@]}")
+  fi
+  for entry in "${remote_nodes[@]}"; do
+    IFS='|' read -r prov isp host fixed_ip port <<< "$entry"
     province_selected "$prov" && count=$((count + 1))
   done
   echo "$count"
 }
 
 count_cernet_nodes() {
-  local entry prov host ip count=0
-  for entry in "${CERNET_NODES[@]}"; do
-    read -r prov host ip <<< "$entry"
+  local entry prov host ip port count=0
+  for entry in "${REMOTE_CERNET_NODES[@]}"; do
+    IFS='|' read -r prov host ip port <<< "$entry"
     province_selected "$prov" && count=$((count + 1))
   done
   echo "$count"
 }
 
 count_cernet2_nodes() {
-  local entry prov host ip count=0
-  for entry in "${CERNET2_NODES[@]}"; do
-    read -r prov host ip <<< "$entry"
+  local entry prov host ip port count=0
+  for entry in "${REMOTE_CERNET2_NODES[@]}"; do
+    IFS='|' read -r prov host ip port <<< "$entry"
     province_selected "$prov" && count=$((count + 1))
   done
   echo "$count"
+}
+
+node_scope() {
+  if [ "$TEST_ALL" -eq 1 ]; then
+    echo "all"
+  elif [ "$TEST_CERNET" -eq 1 ]; then
+    echo "cernet"
+  elif [ "$ONLY_IPV4" -eq 1 ] && [ "$ONLY_IPV6" -eq 0 ]; then
+    echo "v4"
+  elif [ "$ONLY_IPV6" -eq 1 ] && [ "$ONLY_IPV4" -eq 0 ]; then
+    echo "v6"
+  else
+    echo "cdn"
+  fi
+}
+
+load_remote_nodes() {
+  local scope="${1:-$(node_scope)}"
+  local tmp line type family prov isp host ip port target url sep
+  command -v curl &>/dev/null || return 1
+  tmp=$(mktemp)
+  sep="?"
+  [[ "$GET_NODES_URL" == *"?"* ]] && sep="&"
+  url="${GET_NODES_URL}${sep}format=tsv&scope=${scope}"
+  if ! curl -fsSL --connect-timeout 5 --max-time 30 "$url" > "$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  REMOTE_CDN4_NODES=()
+  REMOTE_CDN6_NODES=()
+  REMOTE_CERNET_NODES=()
+  REMOTE_CERNET2_NODES=()
+
+  while IFS=$'\t' read -r type family prov isp host ip port target; do
+    [ "$type" = "type" ] && continue
+    [ -n "$ip" ] || continue
+    port=${port:-80}
+    case "$type:$family" in
+      cdn:4) REMOTE_CDN4_NODES+=("$prov|$isp|$host|$ip|$port") ;;
+      cdn:6) REMOTE_CDN6_NODES+=("$prov|$isp|$host|$ip|$port") ;;
+      cernet:4) REMOTE_CERNET_NODES+=("$prov|$host|$ip|$port") ;;
+      cernet2:6) REMOTE_CERNET2_NODES+=("$prov|$host|$ip|$port") ;;
+    esac
+  done < "$tmp"
+  rm -f "$tmp"
+
+  if [ "${#REMOTE_CDN4_NODES[@]}" -gt 0 ] || [ "${#REMOTE_CDN6_NODES[@]}" -gt 0 ] ||
+     [ "${#REMOTE_CERNET_NODES[@]}" -gt 0 ] || [ "${#REMOTE_CERNET2_NODES[@]}" -gt 0 ]; then
+    REMOTE_NODES_LOADED=1
+    [ "$DEBUG_MODE" -eq 1 ] && echo -e "${DIM}  getNodes: 已加载远端节点 IP+端口（scope=${scope}）${NC}"
+    return 0
+  fi
+  return 1
+}
+
+require_remote_nodes() {
+  local scope="${1:-$(node_scope)}"
+  if load_remote_nodes "$scope"; then
+    return 0
+  fi
+  echo -e "${RED}[X] 无法从 getNodes 获取节点 IP+端口，请稍后重试${NC}"
+  echo -e "${DIM}    getNodes: ${GET_NODES_URL}  scope=${scope}${NC}"
+  exit 1
+}
+
+print_cdn_entries() {
+  local family="$1" entry prov isp host port
+  local -a remote_nodes=()
+  if [ "$family" = "6" ]; then
+    remote_nodes=("${REMOTE_CDN6_NODES[@]}")
+  else
+    remote_nodes=("${REMOTE_CDN4_NODES[@]}")
+  fi
+  printf "%s\n" "${remote_nodes[@]}"
+}
+
+print_cernet_entries() {
+  local entry prov host fixed_ip port
+  printf "%s\n" "${REMOTE_CERNET_NODES[@]}"
+}
+
+print_cernet2_entries() {
+  local entry prov host fixed_ip port
+  printf "%s\n" "${REMOTE_CERNET2_NODES[@]}"
 }
 
 # ===================== 参数与帮助 =====================
@@ -507,16 +364,15 @@ TcpQuality 节点 TCP 丢包探测脚本
 依赖:
   - nping: 随 nmap 安装
   - curl: 用于检测公网 IPv4/IPv6 与上传报告
-  - dig: 用于解析节点域名
   - traceroute: 用于自动识别三网 TCP 回程线路
   - awk/sed/grep: 用于结果解析和展示
 
 安装提示:
-  - Debian/Ubuntu: apt-get install -y curl nmap dnsutils traceroute
-  - RHEL/Fedora:   dnf install -y curl nmap bind-utils traceroute
-  - Alpine Linux:  apk add curl nmap-nping bind-tools traceroute
-  - Arch Linux:    pacman -S curl nmap bind traceroute
-  - macOS:         brew install curl nmap bind traceroute
+  - Debian/Ubuntu: apt-get install -y curl nmap traceroute
+  - RHEL/Fedora:   dnf install -y curl nmap traceroute
+  - Alpine Linux:  apk add curl nmap-nping traceroute
+  - Arch Linux:    pacman -S curl nmap traceroute
+  - macOS:         brew install curl nmap traceroute
 
 说明:
   发送裸 TCP SYN 包通常需要 root 权限；请切换到 root 用户后运行。
@@ -881,11 +737,6 @@ ipv6_available() {
   [ "$IPV6_WORK" -eq 1 ]
 }
 
-dig_short() {
-  local host="$1" record_type="$2"
-  dig +short "$host" "$record_type" 2>/dev/null
-}
-
 is_public_ipv4() {
   local ip="$1"
   awk -F. '
@@ -907,17 +758,6 @@ is_public_ipv4() {
       exit 0
     }
   ' <<< "$ip"
-}
-
-resolve_ipv4() {
-  local host="$1" ip
-  while IFS= read -r ip; do
-    if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && is_public_ipv4 "$ip"; then
-      printf "%s\n" "$ip"
-      return 0
-    fi
-  done < <(dig_short "$host" A)
-  return 1
 }
 
 is_valid_ipv6() {
@@ -1074,14 +914,6 @@ build_asn_map() {
   ' "$cymru_file" > "$map_file"
 }
 
-resolve_route_target_ip() {
-  local family="$1" host="$2" rr="A"
-  [ "$family" = "6" ] && rr="AAAA"
-  dig +time=3 +tries=1 +short "$host" "$rr" 2>/dev/null | awk '
-    /^[0-9.]+$/ || /^[0-9a-fA-F:]+$/ { print; exit }
-  '
-}
-
 route_label_from_ip_trace() {
   local trace_file="$1" asn_map_file="$2" trace_ip_file="$3"
   awk -F'|' '
@@ -1167,14 +999,20 @@ route_label_from_ip_trace() {
 }
 
 route_trace_one() {
-  local family="$1" protocol="$2" prov="$3" isp="$4" host="$5" idx="$6" port="${7:-80}"
+  local family="$1" protocol="$2" prov="$3" isp="$4" host="$5" idx="$6" port="${7:-80}" fixed_ip="${8:-}"
   local outfile="${RESULT_DIR}/route_${idx}" trace_file="${RESULT_DIR}/route_trace_${idx}"
   local probe_arg="-T"
   [ "$protocol" = "udp" ] && probe_arg="-U"
-  local -a args=(-n "-${family}" "$probe_arg" -p "$port" -q 3 -w 2 -m 30 "$host" 44)
-  local output rc target_ip
+  local -a args
+  local output rc target_ip target
 
-  target_ip=$(resolve_route_target_ip "$family" "$host")
+  target_ip="$fixed_ip"
+  if [ -z "$target_ip" ]; then
+    echo "FAIL|$prov|$isp|$protocol|$host|NO_NODE_IP" > "$outfile"
+    return
+  fi
+  target="$target_ip"
+  args=(-n "-${family}" "$probe_arg" -p "$port" -q 3 -w 2 -m 30 "$target" 44)
 
   if output=$(traceroute "${args[@]}" 2>&1); then
     rc=0
@@ -1262,7 +1100,8 @@ run_route_mode() {
     protocols=("$ROUTE_PROTOCOL")
   fi
 
-  check_dig
+  check_curl
+  require_remote_nodes v4
   check_traceroute
   if ! ipv4_available; then
     echo -e "${RED}[X] 未检测到可用 IPv4，暂不执行线路识别${NC}"
@@ -1270,7 +1109,7 @@ run_route_mode() {
   fi
 
   local route_node_count
-  route_node_count=$(count_cdn_nodes)
+  route_node_count=$(count_cdn_nodes "$family")
   TOTAL=$((route_node_count * ${#protocols[@]}))
   if [ "$TOTAL" -eq 0 ]; then
     echo -e "${RED}[X] 指定省份没有可执行的线路检测任务${NC}"
@@ -1282,8 +1121,7 @@ run_route_mode() {
 
   show_progress
   for protocol in "${protocols[@]}"; do
-    for entry in "${NODES[@]}"; do
-      read -r prov isp host port <<< "$entry"
+    while IFS='|' read -r prov isp host fixed_ip port; do
       province_selected "$prov" || continue
       idx=$((idx + 1))
       while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$route_parallel" ]; do
@@ -1291,9 +1129,9 @@ run_route_mode() {
         sleep 0.2
       done
       port=${port:-80}
-      route_trace_one "$family" "$protocol" "$prov" "$isp" "$host" "$idx" "$port" &
+      route_trace_one "$family" "$protocol" "$prov" "$isp" "$host" "$idx" "$port" "$fixed_ip" &
       show_progress
-    done
+    done < <(print_cdn_entries "$family")
   done
   while [ "$(jobs -pr | wc -l | tr -d ' ')" -gt 0 ]; do
     show_progress
@@ -1357,29 +1195,20 @@ run_route_mode() {
 collect_route_labels() {
   local family="$1" out_file="$2" idx=0 entry prov isp host route_total route_raw_file ip_file cymru_file asn_map_file trace_ip_file status protocol value label
   local route_parallel="$PARALLEL"
-  route_total=$(count_cdn_nodes)
+  route_total=$(count_cdn_nodes "$family")
   [ "$route_total" -eq 0 ] && return 0
 
   check_traceroute
   echo -e "  ${DIM}正在识别 IPv${family} TCP 回程线路，请稍候...${NC}"
-  for entry in "${NODES[@]}"; do
-    read -r prov isp host port <<< "$entry"
+  while IFS='|' read -r prov isp host fixed_ip port; do
     province_selected "$prov" || continue
     port=${port:-80}
-    if [ "$family" = "6" ]; then
-      if [[ "$host" == *"-v4."* ]]; then
-        host=${host/-v4./-v6.}
-      else
-        host="$(province_code "$prov")-$(isp_code "$isp")-v6.ip.zstaticcdn.com"
-      fi
-      port=80
-    fi
     idx=$((idx + 1))
     while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$route_parallel" ]; do
       sleep 0.2
     done
-    route_trace_one "$family" tcp "$prov" "$isp" "$host" "$idx" "$port" &
-  done
+    route_trace_one "$family" tcp "$prov" "$isp" "$host" "$idx" "$port" "$fixed_ip" &
+  done < <(print_cdn_entries "$family")
   wait
 
   route_raw_file=$(mktemp)
@@ -1421,7 +1250,6 @@ collect_route_labels() {
 
 export -f route_trace_one
 export -f extract_trace_ips
-export -f resolve_route_target_ip
 
 # ===================== 单节点测试 =====================
 test_one() {
@@ -1430,20 +1258,16 @@ test_one() {
   local outfile="${RESULT_DIR}/${group}_${idx}"
 
   local ip="$fixed_ip"
-  if [ -z "$ip" ] && [ "$family" = "6" ]; then
-    ip=$(dig_short "$host" AAAA | grep -E '^[0-9A-Fa-f:]+$' | head -1)
-  elif [ -z "$ip" ]; then
-    ip=$(resolve_ipv4 "$host") || ip=""
-  elif [ "$family" = "4" ] && ! is_public_ipv4 "$ip"; then
+  if [ "$family" = "4" ] && [ -n "$ip" ] && ! is_public_ipv4 "$ip"; then
     ip=""
   fi
   if [ -z "$ip" ]; then
-    echo "FAIL|$prov|$isp|$host|DNS|0|0|100.00|0" > "$outfile"
+    echo "FAIL|$prov|$isp|$host|GETNODES|0|0|100.00|0" > "$outfile"
     return
   fi
 
   local raw nping_rc iface source_ip source_mac dest_mac route_data
-  local -a nping_base_args=(--tcp -p "$port" --flags syn)
+  local -a nping_base_args=(--privileged --tcp -p "$port" --flags syn)
   if [ "$family" = "6" ]; then
     if ! route_data=$(get_ipv6_route "$ip"); then
       echo "FAIL|$prov|$isp|$host|$ip|0|0|100.00|IPV6_ROUTE_ERROR" > "$outfile"
@@ -1470,9 +1294,12 @@ test_one() {
     one_rcvd=$(printf "%s\n" "$raw" | sed -nE 's/.*Rcvd:[[:space:]]*([0-9]+).*/\1/p' | head -1)
     one_rtt=$(printf "%s\n" "$raw" | sed -nE 's/.*Avg rtt:[[:space:]]*([0-9.]+).*/\1/p' | head -1)
 
-    if [ "$nping_rc" -ne 0 ] ||
-       ! [[ "$one_sent" =~ ^[0-9]+$ ]] || [ "$one_sent" -ne 1 ] ||
+    if ! [[ "$one_sent" =~ ^[0-9]+$ ]] || [ "$one_sent" -ne 1 ] ||
        ! [[ "$one_rcvd" =~ ^[0-9]+$ ]]; then
+      if [ "$DEBUG_MODE" -eq 1 ]; then
+        printf "%s\n" "$raw" > "${RESULT_DIR}/nping_error_${group}_${idx}_${i}.log"
+        printf "%s|%s|%s|%s|%s|%s|%s|%s\n" "$group" "$idx" "$i" "$prov" "$isp" "$host" "$ip" "$nping_rc" >> "${RESULT_DIR}/nping_error_meta.txt"
+      fi
       echo "FAIL|$prov|$isp|$host|$ip|0|0|100.00|NPING_ERROR" > "$outfile"
       return
     fi
@@ -1481,6 +1308,10 @@ test_one() {
     one_success=0
     if [ "$one_rcvd" -gt 0 ]; then
       if ! [[ "$one_rtt" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        if [ "$DEBUG_MODE" -eq 1 ]; then
+          printf "%s\n" "$raw" > "${RESULT_DIR}/nping_error_${group}_${idx}_${i}.log"
+          printf "%s|%s|%s|%s|%s|%s|%s|%s\n" "$group" "$idx" "$i" "$prov" "$isp" "$host" "$ip" "$nping_rc" >> "${RESULT_DIR}/nping_error_meta.txt"
+        fi
         echo "FAIL|$prov|$isp|$host|$ip|0|0|100.00|NPING_ERROR" > "$outfile"
         return
       fi
@@ -1499,53 +1330,9 @@ test_one() {
   echo "OK|$prov|$isp|$host|$ip|$sent|$rcvd|$loss_pct|$avg_rtt" > "$outfile"
 }
 
-should_retry_result() {
-  local status="$1" loss="$2"
-  [ "$status" != "OK" ] && return 0
-  awk -v loss="$loss" 'BEGIN { exit !(loss + 0 >= 100) }'
-}
-
-retry_cdn_failures() {
-  local family="$1" max_idx="$2" retried=0 i f status prov isp host ip snd rcv loss lat
-  local fallback_host retry_file retry_status retry_loss original_status
-
-  for i in $(seq 1 "$max_idx"); do
-    f="${RESULT_DIR}/cdn${family}_${i}"
-    [ -f "$f" ] || continue
-    IFS='|' read -r status prov isp host ip snd rcv loss lat < "$f"
-    should_retry_result "$status" "$loss" || continue
-
-    original_status="$status"
-    for fallback_host in $(fallback_hosts "$prov" "$isp" "$family" "$host"); do
-      retry_file="${RESULT_DIR}/cdn${family}_fallback_${i}"
-      test_one "cdn${family}_fallback" "$family" "$prov" "$isp" "$fallback_host" "$i"
-      [ -f "$retry_file" ] || continue
-      IFS='|' read -r retry_status _ _ _ _ _ _ retry_loss _ < "$retry_file"
-      retried=$((retried + 1))
-
-      if [ "$retry_status" = "OK" ]; then
-        mv "$retry_file" "$f"
-        break
-      fi
-
-      if [ "$original_status" != "OK" ]; then
-        mv "$retry_file" "$f"
-      else
-        rm -f "$retry_file"
-      fi
-    done
-  done
-
-  if [ "$DEBUG_MODE" -eq 1 ] && [ "$retried" -gt 0 ]; then
-    echo -e "  ${DIM}备用节点重测: ${retried} 次${NC}"
-  fi
-}
-
 export -f test_one
 export -f get_ipv6_route
-export -f dig_short
 export -f is_public_ipv4
-export -f resolve_ipv4
 export RESULT_DIR PACKETS PACKET_SIZES
 
 # ===================== 主流程 =====================
@@ -1557,7 +1344,6 @@ main() {
 
   if [ "$ROUTE_MODE" -eq 1 ]; then
     check_curl
-    check_dig
     detect_ip_stack
     run_route_mode
     exit 0
@@ -1565,8 +1351,8 @@ main() {
 
   require_raw_socket_privilege
   check_curl
+  require_remote_nodes
   check_nping
-  check_dig
   detect_ip_stack
 
   local ipv4_enabled=0 ipv6_enabled=0 test_cdn=1 test_edu=0 want_ipv4=1 want_ipv6=1
@@ -1597,16 +1383,19 @@ main() {
   fi
 
   local cdn_node_count cernet_node_count cernet2_node_count
-  cdn_node_count=$(count_cdn_nodes)
+  local cdn4_node_count cdn6_node_count
+  cdn4_node_count=$(count_cdn_nodes 4)
+  cdn6_node_count=$(count_cdn_nodes 6)
+  cdn_node_count="$cdn4_node_count"
   cernet_node_count=$(count_cernet_nodes)
   cernet2_node_count=$(count_cernet2_nodes)
 
   TOTAL=0
-  if [ "$ipv4_enabled" -eq 1 ] && [ "$test_cdn" -eq 1 ]; then TOTAL=$((TOTAL + cdn_node_count)); fi
+  if [ "$ipv4_enabled" -eq 1 ] && [ "$test_cdn" -eq 1 ]; then TOTAL=$((TOTAL + cdn4_node_count)); fi
   if [ "$ipv4_enabled" -eq 1 ] && [ "$test_edu" -eq 1 ]; then TOTAL=$((TOTAL + cernet_node_count)); fi
   if [ "$want_ipv6" -eq 1 ] && ipv6_available; then
     ipv6_enabled=1
-    if [ "$test_cdn" -eq 1 ]; then TOTAL=$((TOTAL + cdn_node_count)); fi
+    if [ "$test_cdn" -eq 1 ]; then TOTAL=$((TOTAL + cdn6_node_count)); fi
     if [ "$test_edu" -eq 1 ]; then TOTAL=$((TOTAL + cernet2_node_count)); fi
     echo -e "${GREEN}[√] 检测到可用 IPv6${NC}"
   elif [ "$want_ipv6" -eq 1 ]; then
@@ -1635,53 +1424,44 @@ main() {
     if [ "$ipv4_enabled" -eq 1 ]; then families+=(4); fi
     if [ "$ipv6_enabled" -eq 1 ]; then families+=(6); fi
     for family in "${families[@]}"; do
-      for entry in "${NODES[@]}"; do
-        read -r prov isp host port <<< "$entry"
+      while IFS='|' read -r prov isp host fixed_ip port; do
         port=${port:-80}
         province_selected "$prov" || continue
-        if [ "$family" = "6" ]; then
-          if [[ "$host" == *"-v4."* ]]; then
-            host=${host/-v4./-v6.}
-          else
-            host="$(province_code "$prov")-$(isp_code "$isp")-v6.ip.zstaticcdn.com"
-          fi
-          port=80
-        fi
         idx=$((idx + 1))
         while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$PARALLEL" ]; do
           show_progress
           sleep 0.2
         done
-        test_one "cdn${family}" "$family" "$prov" "$isp" "$host" "$idx" "" "$port" &
+        test_one "cdn${family}" "$family" "$prov" "$isp" "$host" "$idx" "$fixed_ip" "$port" &
         show_progress
-      done
+      done < <(print_cdn_entries "$family")
     done
   fi
   if [ "$test_edu" -eq 1 ] && [ "$ipv4_enabled" -eq 1 ]; then
-    for entry in "${CERNET_NODES[@]}"; do
-      read -r prov host fixed_ip <<< "$entry"
+    while IFS='|' read -r prov host fixed_ip port; do
+      port=${port:-80}
       province_selected "$prov" || continue
       idx=$((idx + 1))
       while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$PARALLEL" ]; do
         show_progress
         sleep 0.2
       done
-      test_one "cernet" 4 "$prov" "教育网" "$host" "$idx" "$fixed_ip" 80 &
+      test_one "cernet" 4 "$prov" "教育网" "$host" "$idx" "$fixed_ip" "$port" &
       show_progress
-    done
+    done < <(print_cernet_entries)
   fi
   if [ "$test_edu" -eq 1 ] && [ "$ipv6_enabled" -eq 1 ]; then
-    for entry in "${CERNET2_NODES[@]}"; do
-      read -r prov host fixed_ip <<< "$entry"
+    while IFS='|' read -r prov host fixed_ip port; do
+      port=${port:-80}
       province_selected "$prov" || continue
       idx=$((idx + 1))
       while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$PARALLEL" ]; do
         show_progress
         sleep 0.2
       done
-      test_one "cernet2" 6 "$prov" "教育网" "$host" "$idx" "$fixed_ip" 80 &
+      test_one "cernet2" 6 "$prov" "教育网" "$host" "$idx" "$fixed_ip" "$port" &
       show_progress
-    done
+    done < <(print_cernet2_entries)
   fi
   while [ "$(jobs -pr | wc -l | tr -d ' ')" -gt 0 ]; do
     show_progress
@@ -1690,12 +1470,6 @@ main() {
   wait
   show_progress
   echo ""
-
-  if [ "$test_cdn" -eq 1 ]; then
-    for family in "${families[@]}"; do
-      retry_cdn_failures "$family" "$idx"
-    done
-  fi
 
   local sorted_v4 sorted_v6 sorted_cernet sorted_cernet2 route_labels_v4 route_labels_v6 sorted_file f i status ip snd rcv loss lat route_label route_file
   sorted_v4=$(mktemp)
